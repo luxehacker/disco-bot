@@ -1,0 +1,18 @@
+<input id="message" type="text" placeholder="Enter message" />
+<button onclick="sendToDiscord()">Send</button>
+<script>
+  async function sendToDiscord() {
+    const content = document.getElementById("message").value;
+    try {
+      const response = await fetch("http://localhost:3000/send-message", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content, channelId: "ID_HERE" }),
+      });
+      const result = await response.json();
+      alert(result.success ? "Sent!" : `Error: ${result.error}`);
+    } catch (error) {
+      alert("Network error: " + error);
+    }
+  }
+</script>
