@@ -1,1 +1,4 @@
 node_modules/
+.env
+front-end/disco-bot-react/build
+front-end/disco-bot-react/node_modules

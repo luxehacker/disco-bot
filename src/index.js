@@ -5,8 +5,6 @@ const {
   Partials,
   Collection,
   MessageFlags,
-  ContainerBuilder,
-  TextDisplayBuilder,
 } = require("discord.js");
 
 // ✅ Create a new Discord client with clear, explicit intents
@@ -17,6 +15,8 @@ const client = new Client({
     GatewayIntentBits.GuildMessages, // ✅ To read messages in guild channels
     GatewayIntentBits.MessageContent, // ✅ To access the content of messages
     GatewayIntentBits.DirectMessages, // ✅ To handle direct messages (DMs)
+    // GatewayIntentBits.GuildExpressions, // Required for emojis
+    // GatewayIntentBits.GuildEmojisAndStickers,
   ],
   partials: [Partials.Channel], // ✅ Needed for partial DM channels
 });
@@ -27,7 +27,6 @@ client.prefix = new Collection();
 
 // ──────────────[ Core Modules & Config ]──────────────
 const chalk = require("chalk");
-const config = require("../config.json");
 const figlet = require("figlet");
 const fs = require("fs");
 const path = require("path");
@@ -43,6 +42,7 @@ const { prefixHandler } = require("./functions/handlers/prefixHandler");
 const { checkMissingIntents } = require("./functions/handlers/requiredIntents");
 const { antiCrash } = require("./functions/handlers/antiCrash");
 const { initActivityTracker } = require("./functions/handlers/activityTracker");
+const { buildUpdateMessage } = require("./functions/handlers/updateBuilder.ts");
 require("./functions/handlers/watchFolders");
 
 // ──────────────[ Setup Paths ]──────────────
@@ -267,65 +267,9 @@ function logger(type, message) {
 
     // ✅ NOW login to Discord
     logger("INFO", "Connecting to Discord...");
-    await client.login(config.bot.token);
+
+    await client.login(process.env.BOT_TOKEN);
     logger("SUCCESS", `Bot "${client.user.username}" logged in successfully!`);
-
-    // Start Luxe Server Code
-    const app = express();
-    app.use(bodyParser.json());
-    app.use(cors()); // Allow frontend requests
-
-    // HTTP endpoint for frontend to trigger Discord message
-    app.post("/send-message", async (req, res) => {
-      try {
-        const { content, channelId } = req.body; // Frontend sends content and optional channel ID
-        console.log("body", req.body);
-        if (!content) {
-          return res.status(400).json({ error: "Content is required" });
-        }
-
-        // Default to config channel or use provided channelId
-        // TO DO: Add defaultChannelId to bot config, hardcode admin channel which is private for now
-        const targetChannelId =
-          channelId || config.bot.defaultChannelId || "YOUR_CHANNEL_ID";
-        const channel = client.channels.cache.get(targetChannelId);
-
-        console.log("channel", targetChannelId);
-        console.log("channels", client.channels);
-
-        if (!channel || !channel.isTextBased()) {
-          logger("ERROR", `Invalid or non-text channel: ${targetChannelId}`);
-          return res.status(400).json({ error: "Invalid channel" });
-        }
-
-        const container = new ContainerBuilder();
-        const text = new TextDisplayBuilder().setContent(content);
-        container.addTextDisplayComponents(text);
-
-        await channel.send({
-          components: [container],
-          flags: MessageFlags.IsComponentsV2,
-        });
-
-        logger(
-          "SUCCESS",
-          `Message sent to channel ${targetChannelId}: ${content}`
-        );
-        res.json({ success: true, message: "Sent to Discord!" });
-      } catch (error) {
-        logger("ERROR", `Failed to send message: ${error.message}`);
-        logErrorToFile(error);
-        res.status(500).json({ error: "Failed to send message" });
-      }
-    });
-
-    // Start HTTP server
-    const port = process.env.PORT || 3000;
-    app.listen(port, () => {
-      logger("SUCCESS", `HTTP server running on port ${port}`);
-    });
-
-    // End Luxe Server Code
 
     // Load slash commands AFTER login
     logger("INFO", "Loading slash commands...");
@@ -345,6 +289,136 @@ function logger(type, message) {
     logger("SUCCESS", "Activity tracker initialized for all project folders");
 
     createHeader("BOT READY", "🚀", chalk.green);
+    // Bot is ready so define server endpoints here
+
+    const app = express();
+    app.use(bodyParser.json());
+    app.use(cors()); // Allow frontend requests
+
+    // HTTP endpoint for frontend to trigger Discord message
+    app.post("/send-message", async (req, res) => {
+      try {
+        const { data, channelId } = req.body; // Frontend sends content and optional channel ID
+        console.log("body", req.body);
+        if (!data) {
+          return res.status(400).json({ error: "Content is required" });
+        }
+
+        const targetChannelId =
+          channelId || process.env.BOT_DEFAULT_CHANNEL_ID || "YOUR_CHANNEL_ID";
+        const channel = client.channels.cache.get(targetChannelId);
+
+        if (!channel || !channel.isTextBased()) {
+          logger("ERROR", `Invalid or non-text channel: ${targetChannelId}`);
+          return res.status(400).json({ error: "Invalid channel" });
+        }
+
+        const container = buildUpdateMessage(data, client);
+
+        await channel.send({
+          components: [container],
+          flags: MessageFlags.IsComponentsV2,
+        });
+
+        logger("SUCCESS", `Message sent to channel ${targetChannelId}!`);
+        res.json({ success: true, message: "Sent to Discord!" });
+      } catch (error) {
+        logger("ERROR", `Failed to send message: ${error.message}`);
+        logErrorToFile(error);
+        res.status(500).json({ error: "Failed to send message" });
+      }
+    });
+
+    app.get("/emojis", async (req, res) => {
+      try {
+        if (!client.isReady()) {
+          return res
+            .status(503)
+            .json({ error: "Discord client is not ready yet" });
+        }
+
+        const guildId = process.env.GUILD_ID;
+        if (!guildId) {
+          return res.status(400).json({ error: "GUILD_ID not set in .env" });
+        }
+
+        // Fetch guild to ensure emojis are loaded
+        let guild = client.guilds.cache.get(guildId);
+        if (!guild || guild.partial) {
+          guild = await client.guilds.fetch(guildId);
+        }
+
+        // Map guild.emojis.cache to frontend-friendly format
+        const emojis = Array.from(guild.emojis.cache).map(([id, emoji]) => ({
+          name: emoji.name, // e.g., 'luxeprWahoo'
+          id: emoji.id,
+          identifier: emoji.animated
+            ? `<a:${emoji.name}:${emoji.id}>`
+            : `<:${emoji.name}:${emoji.id}>`, // Handles animated emojis
+        }));
+
+        console.log("Fetched emojis:", emojis);
+
+        if (emojis.length === 0) {
+          logger(
+            "WARN",
+            `No emojis found in guild ${guildId}. Check bot permissions.`
+          );
+        }
+
+        res.json(emojis); // Sends [{ name: 'luxeprWahoo', id: '123', identifier: '<:luxeprWahoo:123>' }, ...]
+      } catch (error) {
+        logger("ERROR", `Failed to fetch emojis: ${error.message}`);
+        res.status(500).json({ error: "Failed to fetch emojis" });
+      }
+    });
+
+    app.get("/roles", async (req, res) => {
+      try {
+        if (!client.isReady()) {
+          return res
+            .status(503)
+            .json({ error: "Discord client is not ready yet" });
+        }
+
+        const guildId = process.env.GUILD_ID;
+        if (!guildId) {
+          return res.status(400).json({ error: "GUILD_ID not set in .env" });
+        }
+
+        let guild = client.guilds.cache.get(guildId);
+        if (!guild || guild.partial) {
+          guild = await client.guilds.fetch(guildId);
+        }
+
+        // Map roles to frontend-friendly format
+        const roles = Array.from(guild.roles.cache)
+          .filter(([id, role]) => role.name !== "@everyone" && !role.managed) // Exclude @everyone and managed roles
+          .map(([id, role]) => ({
+            name: role.name, // e.g., 'Admin'
+            id: role.id, // e.g., '987654321098765432'
+            mention: `<@&${role.id}>`, // e.g., '<@&987654321098765432>'
+          }));
+
+        if (roles.length === 0) {
+          logger(
+            "WARN",
+            `No eligible roles found in guild ${guildId}. Check bot permissions.`
+          );
+        }
+
+        res.json(roles); // Sends [{ name: 'Admin', id: '987654321098765432', mention: '<@&987654321098765432>' }, ...]
+      } catch (error) {
+        logger("ERROR", `Failed to fetch roles: ${error.message}`);
+        res.status(500).json({ error: "Failed to fetch roles" });
+      }
+    });
+
+    // Start HTTP server
+    const port = process.env.PORT || 3000;
+    app.listen(port, () => {
+      createHeader(`SERVER RUNNING ON PORT ${port}`, "❤️", chalk.greenBright);
+    });
   } catch (error) {
     if (error.message === "An invalid token was provided.") {
       logger(

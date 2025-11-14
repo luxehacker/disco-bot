@@ -1,0 +1,124 @@
+@import "./variables.scss";
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap");
+
+.siteWrapper {
+  background: $background;
+  font-family: Space Mono;
+  display: flex;
+  justify-content: center;
+  flex-direction: column;
+  align-items: center;
+  min-height: 100vh;
+  color: $color;
+}
+
+.innerWrapper {
+  width: 800px;
+}
+
+.heading {
+  font-size: 48px;
+}
+
+.text {
+  font-size: 24px;
+}
+
+.button {
+  cursor: pointer;
+  border: none;
+  padding: 16px;
+  font-weight: 700;
+  border-radius: 10px;
+  color: $textdark;
+  background: $color;
+  font-size: 24px;
+  margin-top: 16px;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.error {
+  font-weight: 800;
+  font-size: 14px;
+  color: $error;
+  margin-top: 8px;
+}
+
+.bulletPointsContainer {
+  display: flex;
+  flex-direction: column;
+  background: $backgroundLighter;
+  border-radius: 10px;
+  margin: 16px 0;
+  padding: 16px;
+}
+
+.bulletPoint {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.bulletPointTextRow {
+  display: flex;
+  width: 40%;
+  margin-right: 16px;
+}
+
+.bulletPointRow {
+  width: 100%;
+  display: flex;
+  align-items: center;
+}
+
+.bulletPointUrlRow {
+  display: flex;
+  width: 100%;
+  align-items: center;
+}
+
+.bulletPointButtonRow {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  input {
+    width: auto;
+  }
+}
+
+.addButton {
+  cursor: pointer;
+  border: none;
+  margin-left: 16px;
+  padding: 16px;
+  font-size: 18px;
+  font-weight: 700;
+  border-radius: 10px;
+  color: $textdark;
+  background: $color;
+  white-space: nowrap;
+}
+
+.removeButton {
+  cursor: pointer;
+  border: none;
+  white-space: nowrap;
+  background: $error;
+  color: $textlight;
+  margin-left: 16px;
+  padding: 16px;
+  font-size: 18px;
+  font-weight: 700;
+  border-radius: 10px;
+}
+
+.checkboxWrapper {
+  margin-left: 32px;
+  display: flex;
+  align-items: center;
+}
